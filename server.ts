@@ -15,6 +15,9 @@ const isProduction = process.env.NODE_ENV === 'production';
 const PORT = Number(process.env.PORT) || 3000;
 
 const CHAT_MODEL = 'google/gemini-3-flash-preview';
+const TTS_MODEL = 'google/gemini-3.1-flash-tts-preview';
+const TTS_VOICE = 'Zephyr';
+const isVercel = Boolean(process.env.VERCEL);
 
 function pcmToWav(pcm: Buffer): Buffer {
   const header = Buffer.alloc(44);
@@ -69,13 +72,18 @@ async function startServer() {
       models: {
         fast: CHAT_MODEL,
         thinking: CHAT_MODEL,
-        tts: 'google/gemini-3.1-flash-tts-preview',
+        tts: TTS_MODEL,
+        voice: TTS_VOICE,
         stt: { en: 'openai/whisper-large-v3-turbo', my: 'google/chirp-3' },
       },
     });
   });
 
   app.get('/api/thiri/files/:name', (req: Request, res: Response) => {
+    if (isVercel) {
+      res.status(404).json({ error: 'Local files are unavailable on this deployment.' });
+      return;
+    }
     try {
       const name = String(req.params.name);
       if (!/\.(txt|docx|pptx)$/i.test(name)) throw new Error('Unsupported file type.');
@@ -110,7 +118,7 @@ async function startServer() {
       const messages = [
         {
           role: 'system',
-          content: `${THIRI_SYSTEM_PROMPT}\n\nReply in ${language === 'my' ? 'natural, polite Burmese' : 'English'}. Keep replies concise and easy to speak aloud. Use computer tools only when the user explicitly asks for a computer action. Files are limited to the Thiri Output folder. You can create, replace, rename, and delete files there. Updating a file replaces its entire contents; ask for missing original content when the user requests a partial edit. You may perform a short sequence of actions in an app when the user requests them, such as opening Notepad and typing text. For a user-named button or control in the active window, use click_named_element, which finds it locally through Windows accessibility. For a coordinate click or move, use only coordinates the user gave; never guess a position. If local accessibility cannot find a control, ask the user for coordinates. No screenshot or screen content may be sent to OpenRouter. Do not claim an action succeeded unless a tool result confirms it.`,
+          content: `${THIRI_SYSTEM_PROMPT}\n\nReply in ${language === 'my' ? 'natural, polite Burmese' : 'English'}. Keep replies concise and easy to speak aloud. ${isVercel ? 'This cloud deployment can chat and speak but cannot control the visitor’s computer or access their local files. Explain that limitation when asked.' : 'Use computer tools only when the user explicitly asks for a computer action. Files are limited to the Thiri Output folder. You can create, replace, rename, and delete files there. Updating a file replaces its entire contents; ask for missing original content when the user requests a partial edit. You may perform a short sequence of actions in an app when the user requests them, such as opening Notepad and typing text. For a user-named button or control in the active window, use click_named_element, which finds it locally through Windows accessibility. For a coordinate click or move, use only coordinates the user gave; never guess a position. If local accessibility cannot find a control, ask the user for coordinates.'} No screenshot or screen content may be sent to OpenRouter. Do not claim an action succeeded unless a tool result confirms it.`,
         },
         ...(Array.isArray(history)
           ? history.slice(-8).filter((item: any) => item?.text && ['user', 'assistant', 'model'].includes(item.role)).map((item: any) => ({
@@ -135,8 +143,7 @@ async function startServer() {
           max_tokens: 1800,
           temperature: 0.5,
           reasoning: { effort: mode === 'thinking' ? 'high' : 'low' },
-          tools: assistantTools,
-          tool_choice: 'auto',
+          ...(isVercel ? {} : { tools: assistantTools, tool_choice: 'auto' }),
         }),
       });
 
@@ -265,9 +272,9 @@ async function startServer() {
           'X-OpenRouter-Title': 'Thiri AI Voice Assistant',
         },
         body: JSON.stringify({
-          model: 'google/gemini-3.1-flash-tts-preview',
+          model: TTS_MODEL,
           input: cleanText,
-          voice: 'Zephyr',
+          voice: TTS_VOICE,
           response_format: 'pcm',
         }),
       });
@@ -285,16 +292,15 @@ async function startServer() {
         text: cleanText,
       });
     } catch (error: any) {
-      console.warn('OpenRouter TTS warning (will gracefully fallback to client speech):', error.message);
-      res.status(200).json({
-        fallback: true,
-        error: error.message,
-      });
+      console.error('OpenRouter TTS error:', error.message);
+      res.status(502).json({ error: error.message || 'Voice generation failed.' });
     }
   });
 
   // Vite integration
-  if (!isProduction) {
+  if (isVercel) {
+    // Vercel serves the Vite output separately and runs API routes as functions.
+  } else if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -307,12 +313,14 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  if (!isVercel) app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Thiri Assistant Server] Running on http://0.0.0.0:${PORT}`);
   });
+  return app;
 }
 
-startServer().catch((err) => {
+const app = await startServer().catch((err) => {
   console.error('Failed to start server:', err);
-  process.exit(1);
+  throw err;
 });
+export default app;

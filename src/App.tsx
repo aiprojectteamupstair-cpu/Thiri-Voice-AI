@@ -52,7 +52,7 @@ export default function App() {
     setErrorMessage(null);
   }, []);
 
-  // Play spoken response via OpenRouter TTS with browser speech fallback
+  // Play spoken response with the configured server voice on every device.
   const speakResponse = useCallback(
     async (text: string) => {
       const session = sessionRef.current;
@@ -89,23 +89,13 @@ export default function App() {
         const data = await res.json();
         if (session !== sessionRef.current || playback !== playbackRef.current) return;
 
-        if (data.audio) {
-          if (inCall && !isMutedRef.current) void startListening(true, playback);
-          await audioManager.playTTS(data.audio, data.mimeType);
-        } else {
-          // Fallback to browser Web Speech synthesis
-          if (inCall && !isMutedRef.current) void startListening(true, playback);
-          await audioManager.playBrowserSpeech(text, languageRef.current);
-        }
+        if (!res.ok || !data.audio) throw new Error(data.error || 'The configured voice is unavailable.');
+        if (inCall && !isMutedRef.current) void startListening(true, playback);
+        await audioManager.playTTS(data.audio, data.mimeType);
       } catch (err) {
         if (session !== sessionRef.current || playback !== playbackRef.current) return;
-        console.warn('TTS playback error, trying speech synthesis fallback:', err);
-        try {
-          if (inCall && !isMutedRef.current) void startListening(true, playback);
-          await audioManager.playBrowserSpeech(text, languageRef.current);
-        } catch (synthErr) {
-          console.error('Speech synthesis also failed:', synthErr);
-        }
+        console.error('TTS playback error:', err);
+        setErrorMessage(err instanceof Error ? err.message : 'The configured voice is unavailable.');
       } finally {
         // After speaking ends, automatically return to listening if still in call
         if (session !== sessionRef.current || playback !== playbackRef.current) return;
