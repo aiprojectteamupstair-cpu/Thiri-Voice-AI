@@ -5,6 +5,7 @@ import { TranscriptBubble } from './components/TranscriptBubble';
 import { CallControls } from './components/CallControls';
 import { audioManager } from './utils/audio';
 import { speechService } from './utils/speechRecognition';
+import { readApiJson } from './utils/api';
 import { Volume2, VolumeX, AlertCircle } from 'lucide-react';
 
 export default function App() {
@@ -86,7 +87,7 @@ export default function App() {
           }),
         });
 
-        const data = await res.json();
+        const data = await readApiJson(res);
         if (session !== sessionRef.current || playback !== playbackRef.current) return;
 
         if (!res.ok || !data.audio) throw new Error(data.error || 'The configured voice is unavailable.');
@@ -148,7 +149,7 @@ export default function App() {
           }),
         });
 
-        const data = await response.json();
+        const data = await readApiJson(response);
         if (session !== sessionRef.current) return;
 
         if (!response.ok || data.error) {

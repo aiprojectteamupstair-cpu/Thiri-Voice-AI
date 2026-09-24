@@ -1,15 +1,10 @@
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import { createServer as createViteServer } from 'vite';
-import { assistantTools, executeAssistantTool } from './assistantTools';
-import { filePath } from './desktopActions';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = process.cwd();
 
 const isProduction = process.env.NODE_ENV === 'production';
 const PORT = Number(process.env.PORT) || 3000;
@@ -59,8 +54,7 @@ Identity & Personality:
   * Be clear when you are unsure or cannot verify current facts.
 `;
 
-async function startServer() {
-  const app = express();
+const app = express();
   app.use(express.json({ limit: '10mb' }));
 
   // Health check
@@ -79,7 +73,7 @@ async function startServer() {
     });
   });
 
-  app.get('/api/thiri/files/:name', (req: Request, res: Response) => {
+  app.get('/api/thiri/files/:name', async (req: Request, res: Response) => {
     if (isVercel) {
       res.status(404).json({ error: 'Local files are unavailable on this deployment.' });
       return;
@@ -87,6 +81,7 @@ async function startServer() {
     try {
       const name = String(req.params.name);
       if (!/\.(txt|docx|pptx)$/i.test(name)) throw new Error('Unsupported file type.');
+      const { filePath } = await import('./desktopActions');
       res.download(filePath(name));
     } catch {
       res.status(400).json({ error: 'Invalid file name.' });
@@ -128,6 +123,7 @@ async function startServer() {
           : []),
         { role: 'user', content: message },
       ];
+      const computerTools = isVercel ? undefined : await import('./assistantTools');
 
       const runCompletion = () => fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -143,7 +139,7 @@ async function startServer() {
           max_tokens: 1800,
           temperature: 0.5,
           reasoning: { effort: mode === 'thinking' ? 'high' : 'low' },
-          ...(isVercel ? {} : { tools: assistantTools, tool_choice: 'auto' }),
+          ...(computerTools ? { tools: computerTools.assistantTools, tool_choice: 'auto' } : {}),
         }),
       });
 
@@ -169,7 +165,8 @@ async function startServer() {
         messages.push({ role: 'assistant', content: assistantMessage.content || null, tool_calls: toolCalls } as any);
         for (const toolCall of toolCalls) {
           try {
-            const result = await executeAssistantTool(toolCall.function.name, toolCall.function.arguments, language === 'my' ? 'my' : 'en');
+            if (!computerTools) throw new Error('Desktop controls are unavailable on the cloud deployment.');
+            const result = await computerTools.executeAssistantTool(toolCall.function.name, toolCall.function.arguments, language === 'my' ? 'my' : 'en');
             completed.push(result.text);
             if (result.fileName) files.push(result.fileName);
             messages.push({ role: 'tool', tool_call_id: toolCall.id, content: result.text } as any);
@@ -297,30 +294,23 @@ async function startServer() {
     }
   });
 
-  // Vite integration
-  if (isVercel) {
-    // Vercel serves the Vite output separately and runs API routes as functions.
-  } else if (!isProduction) {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
-    });
-  }
-
-  if (!isVercel) app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Thiri Assistant Server] Running on http://0.0.0.0:${PORT}`);
-  });
-  return app;
-}
-
-const app = await startServer().catch((err) => {
-  console.error('Failed to start server:', err);
-  throw err;
-});
 export default app;
+
+if (!isVercel) {
+  void (async () => {
+    if (!isProduction) {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
+      app.use(vite.middlewares);
+    } else {
+      app.use(express.static(path.resolve(__dirname, 'dist')));
+      app.get('*', (_req, res) => res.sendFile(path.resolve(__dirname, 'dist', 'index.html')));
+    }
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`[Thiri Assistant Server] Running on http://0.0.0.0:${PORT}`);
+    });
+  })().catch((error) => {
+    console.error('Failed to start server:', error);
+    process.exitCode = 1;
+  });
+}

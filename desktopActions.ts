@@ -1,11 +1,10 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readdir, rename, stat, writeFile, unlink, copyFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Document, HeadingLevel, Packer, Paragraph } from 'docx';
 import PptxGenJS from 'pptxgenjs';
 
-const projectDir = path.dirname(fileURLToPath(import.meta.url));
+const projectDir = process.cwd();
 export const outputDir = path.join(projectDir, 'Thiri Output');
 const openScript = path.join(projectDir, 'scripts', 'open-item.ps1');
 const inputScript = path.join(projectDir, 'scripts', 'control-input.ps1');

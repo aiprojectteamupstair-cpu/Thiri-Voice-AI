@@ -1,3 +1,5 @@
+import { readApiJson } from './api';
+
 /**
  * Records short microphone turns and transcribes them through the server.
  * This avoids browser speech services that may be unavailable or offline.
@@ -216,7 +218,7 @@ export class SpeechRecognitionService {
         body: upload,
         signal: AbortSignal.timeout(65000),
       });
-      const data = await response.json();
+      const data = await readApiJson(response);
       if (sessionId !== this.sessionId) return;
 
       if (!response.ok || data.error) {
