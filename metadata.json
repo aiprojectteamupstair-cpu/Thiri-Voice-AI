@@ -1,0 +1,11 @@
+{
+  "name": "သီရိ (Thiri) - AI Voice Personal Assistant",
+  "description": "Natural voice-first AI personal assistant with low-latency responses, deep thinking mode, and real-time 2026 web knowledge.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
+

@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Padauk', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+}
+
+@keyframes orb-breathe {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 35px rgba(99, 102, 241, 0.45)) drop-shadow(0 0 70px rgba(168, 85, 247, 0.25));
+  }
+  50% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 0 55px rgba(99, 102, 241, 0.65)) drop-shadow(0 0 100px rgba(236, 72, 153, 0.4));
+  }
+}
+
+@keyframes orb-speak {
+  0%, 100% {
+    transform: scale(1.02) rotate(0deg);
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  }
+  33% {
+    transform: scale(1.12) rotate(120deg);
+    border-radius: 40% 60% 70% 30% / 50% 60% 30% 60%;
+  }
+  66% {
+    transform: scale(0.96) rotate(240deg);
+    border-radius: 70% 30% 50% 50% / 30% 40% 60% 70%;
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.animate-orb-breathe {
+  animation: orb-breathe 4s ease-in-out infinite;
+}
+
+.animate-orb-speak {
+  animation: orb-speak 3.5s ease-in-out infinite;
+}
+
+.animate-ripple-1 {
+  animation: ripple 2.6s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+.animate-ripple-2 {
+  animation: ripple 2.6s cubic-bezier(0, 0.2, 0.8, 1) infinite 0.85s;
+}
+
+.animate-ripple-3 {
+  animation: ripple 2.6s cubic-bezier(0, 0.2, 0.8, 1) infinite 1.7s;
+}
+
