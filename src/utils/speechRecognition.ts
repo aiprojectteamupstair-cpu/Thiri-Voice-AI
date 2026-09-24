@@ -1,4 +1,5 @@
 import { readApiJson } from './api';
+import { companionFetch } from './companion';
 
 /**
  * Records short microphone turns and transcribes them through the server.
@@ -212,7 +213,7 @@ export class SpeechRecognitionService {
         console.warn('Could not convert microphone recording to WAV:', error);
       }
       if (sessionId !== this.sessionId) return;
-      const response = await fetch(`/api/thiri/transcribe?language=${this.currentLanguage}`, {
+      const response = await companionFetch(`/api/thiri/transcribe?language=${this.currentLanguage}`, {
         method: 'POST',
         headers: { 'Content-Type': upload.type || 'audio/webm' },
         body: upload,

@@ -9,6 +9,7 @@ interface TranscriptBubbleProps {
   groundingSources?: GroundingSource[];
   language: 'my' | 'en';
   mode: 'fast' | 'thinking';
+  onOpenSource?: (source: GroundingSource) => void;
 }
 
 export const TranscriptBubble: React.FC<TranscriptBubbleProps> = ({
@@ -18,6 +19,7 @@ export const TranscriptBubble: React.FC<TranscriptBubbleProps> = ({
   groundingSources = [],
   language,
   mode,
+  onOpenSource,
 }) => {
   const getStatusLabel = () => {
     switch (state) {
@@ -107,6 +109,7 @@ export const TranscriptBubble: React.FC<TranscriptBubbleProps> = ({
                       <a
                         key={index}
                         href={source.uri}
+                        onClick={onOpenSource ? (event) => { event.preventDefault(); onOpenSource(source); } : undefined}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-block max-w-[160px] truncate px-2 py-0.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded text-[11px] text-cyan-300 transition-colors"

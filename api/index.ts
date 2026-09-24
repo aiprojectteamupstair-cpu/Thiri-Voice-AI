@@ -1,9 +1,10 @@
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
+import { timingSafeEqual } from 'node:crypto';
 
 dotenv.config();
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 3003;
 
 const CHAT_MODEL = 'google/gemini-3-flash-preview';
 const TTS_MODEL = 'google/gemini-3.1-flash-tts-preview';
@@ -49,8 +50,43 @@ Identity & Personality:
   * Be clear when you are unsure or cannot verify current facts.
 `;
 
-export function createThiriApp(desktopAvailable: boolean) {
+export function createThiriApp(desktopAvailable: boolean, companion?: { token: string; allowedOrigin: string }) {
   const app = express();
+  if (desktopAvailable && !companion) {
+    app.use((req, res, next) => {
+      const allowed = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`];
+      const host = `http://${req.headers.host || ''}`;
+      if (!allowed.includes(host) || (req.headers.origin && !allowed.includes(req.headers.origin))) {
+        res.status(403).json({ error: 'Local access only.' });
+        return;
+      }
+      next();
+    });
+  }
+  if (companion) {
+    app.use((req, res, next) => {
+      const origin = req.headers.origin;
+      if (origin === companion.allowedOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Thiri-Pairing-Key');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Private-Network', 'true');
+      }
+      if (req.method === 'OPTIONS') {
+        res.status(origin === companion.allowedOrigin ? 204 : 403).end();
+        return;
+      }
+      const supplied = req.header('X-Thiri-Pairing-Key') || '';
+      const expected = Buffer.from(companion.token);
+      const actual = Buffer.from(supplied);
+      if (origin !== companion.allowedOrigin || actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+        res.status(401).json({ error: 'Computer pairing is required.' });
+        return;
+      }
+      next();
+    });
+  }
   app.use(express.json({ limit: '10mb' }));
 
   // Health check

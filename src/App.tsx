@@ -6,7 +6,8 @@ import { CallControls } from './components/CallControls';
 import { audioManager } from './utils/audio';
 import { speechService } from './utils/speechRecognition';
 import { readApiJson } from './utils/api';
-import { Volume2, VolumeX, AlertCircle } from 'lucide-react';
+import { companionFetch, getCompanion, normalizeCompanionUrl, setCompanion, type CompanionConnection } from './utils/companion';
+import { Volume2, VolumeX, AlertCircle, Monitor } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<AssistantState>('idle');
@@ -14,6 +15,14 @@ export default function App() {
   const [language, setLanguage] = useState<'my' | 'en'>('my');
   const [isMuted, setIsMuted] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [computerConnection, setComputerConnection] = useState<CompanionConnection | null>(getCompanion);
+  const [showComputerPanel, setShowComputerPanel] = useState(false);
+  const [computerUrl, setComputerUrl] = useState('');
+  const [pairingCode, setPairingCode] = useState('');
+  const [localPairingCode, setLocalPairingCode] = useState('');
+  const [localTunnelUrl, setLocalTunnelUrl] = useState('');
+  const [computerError, setComputerError] = useState('');
+  const isLocalPage = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
   // Transcript states
   const [userTranscript, setUserTranscript] = useState('');
@@ -78,7 +87,7 @@ export default function App() {
 
       try {
         // Fetch audio from server OpenRouter TTS
-        const res = await fetch('/api/thiri/tts', {
+        const res = await companionFetch('/api/thiri/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -135,7 +144,7 @@ export default function App() {
       setConversationHistory((prev) => [...prev.slice(-8), userTurn]);
 
       try {
-        const response = await fetch('/api/thiri/chat', {
+        const response = await companionFetch('/api/thiri/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -354,6 +363,62 @@ export default function App() {
     speechService.setLanguage(nextLang);
   };
 
+  const openComputerPanel = async () => {
+    setShowComputerPanel((value) => !value);
+    setComputerError('');
+    if (isLocalPage && !localPairingCode) {
+      try {
+        const response = await fetch('/api/local/pairing');
+        const data = await readApiJson(response);
+        if (!response.ok) throw new Error(data.error || 'Could not get a pairing code.');
+        setLocalPairingCode(data.code);
+        setLocalTunnelUrl(data.tunnelUrl || '');
+      } catch (error) {
+        setComputerError(error instanceof Error ? error.message : 'Could not get a pairing code.');
+      }
+    }
+  };
+
+  const connectComputer = async () => {
+    try {
+      setComputerError('');
+      const candidate = { url: normalizeCompanionUrl(computerUrl), code: pairingCode.trim() };
+      if (!candidate.code) throw new Error('Enter the pairing code shown on your PC.');
+      const response = await fetch(`${candidate.url}/api/health`, {
+        headers: { 'X-Thiri-Pairing-Key': candidate.code },
+        credentials: 'omit',
+        signal: AbortSignal.timeout(12000),
+      });
+      const data = await readApiJson(response);
+      if (!response.ok || data.status !== 'ok') throw new Error(data.error || 'Could not connect to your PC.');
+      setCompanion(candidate);
+      setComputerConnection(candidate);
+      setShowComputerPanel(false);
+      setPairingCode('');
+    } catch (error) {
+      setComputerError(error instanceof Error ? error.message : 'Could not connect to your PC.');
+    }
+  };
+
+  const openSource = async (source: GroundingSource) => {
+    if (!computerConnection || !source.uri.startsWith('/api/thiri/files/')) {
+      window.open(source.uri, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    try {
+      const response = await companionFetch(source.uri);
+      if (!response.ok) throw new Error('Could not download the file from your PC.');
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = source.title;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not download the file.');
+    }
+  };
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -377,6 +442,10 @@ export default function App() {
           </span>
         </div>
 
+        <div className="flex items-center gap-2">
+        <button type="button" onClick={openComputerPanel} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-xs text-slate-300">
+          <Monitor className="w-4 h-4" /> {isLocalPage ? 'Pair devices' : computerConnection ? 'PC connected' : 'Connect PC'}
+        </button>
         {/* Audio output sound toggle */}
         <button
           type="button"
@@ -386,7 +455,26 @@ export default function App() {
         >
           {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-amber-400" />}
         </button>
+        </div>
       </header>
+
+      {showComputerPanel && <div className="absolute z-30 right-6 top-16 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-[#151925] p-4 shadow-2xl space-y-3 text-sm">
+        {isLocalPage ? <>
+          <p className="font-semibold">Pair another device</p>
+          <p className="text-xs text-slate-400">Keep this PC running. Start remote access with scripts/start-remote-access.ps1, then enter this URL and code on the hosted Thiri site.</p>
+          {localTunnelUrl && <div className="space-y-1"><code className="block break-all rounded bg-black/30 p-2 text-xs">{localTunnelUrl}</code><button type="button" onClick={() => navigator.clipboard.writeText(localTunnelUrl)} className="text-indigo-300 text-xs">Copy tunnel URL</button></div>}
+          <code className="block break-all rounded bg-black/30 p-2 text-xs">{localPairingCode || 'Loading pairing code...'}</code>
+          {localPairingCode && <button type="button" onClick={() => navigator.clipboard.writeText(localPairingCode)} className="text-indigo-300 text-xs">Copy code</button>}
+        </> : <>
+          <p className="font-semibold">Connect your Windows computer</p>
+          <p className="text-xs text-slate-400">Run Thiri and a secure tunnel on that PC. Enter the tunnel URL and the code shown at localhost:3003 → Pair devices.</p>
+          <input aria-label="Companion URL" placeholder="https://your-tunnel.example.com" value={computerUrl} onChange={(event) => setComputerUrl(event.target.value)} className="w-full rounded bg-white/5 border border-white/10 px-3 py-2 outline-none" />
+          <input aria-label="Pairing code" placeholder="Pairing code" value={pairingCode} onChange={(event) => setPairingCode(event.target.value)} className="w-full rounded bg-white/5 border border-white/10 px-3 py-2 outline-none" />
+          <button type="button" onClick={connectComputer} className="rounded bg-indigo-600 px-3 py-1.5">Connect</button>
+          {computerConnection && <button type="button" onClick={() => { setCompanion(null); setComputerConnection(null); setShowComputerPanel(false); }} className="ml-3 text-slate-400">Disconnect</button>}
+        </>}
+        {computerError && <p className="text-xs text-rose-300">{computerError}</p>}
+      </div>}
 
       {/* Centerpiece: Minimal Screen with Voice Visualizer and Agent Name */}
       <section className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-4 my-auto">
@@ -411,6 +499,7 @@ export default function App() {
           groundingSources={groundingSources}
           language={language}
           mode={mode}
+          onOpenSource={openSource}
         />
 
         {/* Error notification banner if any */}
