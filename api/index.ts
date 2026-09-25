@@ -148,7 +148,7 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
           content: `${THIRI_SYSTEM_PROMPT}\n\nReply in ${language === 'my' ? 'natural, polite Burmese' : 'English'}. Keep replies concise and easy to speak aloud. ${!desktopAvailable ? 'This cloud deployment can chat and speak but cannot control the visitor’s computer or access their local files. Explain that limitation when asked.' : 'Use computer tools only when the user explicitly asks for a computer action. Files are limited to the Thiri Output folder. You can create, replace, rename, and delete files there. Updating a file replaces its entire contents; ask for missing original content when the user requests a partial edit. You may perform a short sequence of actions in an app when the user requests them, such as opening Notepad and typing text. For a user-named button or control in the active window, use click_named_element, which finds it locally through Windows accessibility. For a coordinate click or move, use only coordinates the user gave; never guess a position. If local accessibility cannot find a control, ask the user for coordinates.'} No screenshot or screen content may be sent to OpenRouter. Do not claim an action succeeded unless a tool result confirms it.`,
         },
         ...(Array.isArray(history)
-          ? history.slice(-8).filter((item: any) => item?.text && ['user', 'assistant', 'model'].includes(item.role)).map((item: any) => ({
+          ? history.slice(-30).filter((item: any) => item?.text && ['user', 'assistant', 'model'].includes(item.role)).map((item: any) => ({
               role: item.role === 'assistant' || item.role === 'model' ? 'assistant' : 'user',
               content: String(item.text),
             }))

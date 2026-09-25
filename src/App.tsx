@@ -9,6 +9,25 @@ import { readApiJson } from './utils/api';
 import { companionFetch, getCompanion, normalizeCompanionUrl, setCompanion, type CompanionConnection } from './utils/companion';
 import { Volume2, VolumeX, AlertCircle, Monitor } from 'lucide-react';
 
+const CONVERSATION_STORAGE_KEY = 'thiri-conversation-history-v1';
+const MAX_STORED_TURNS = 100;
+const MAX_CONTEXT_TURNS = 30;
+
+function loadConversationHistory(): ConversationTurn[] {
+  try {
+    const saved = localStorage.getItem(CONVERSATION_STORAGE_KEY);
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((turn: any) => turn && ['user', 'assistant'].includes(turn.role) && typeof turn.text === 'string')
+      .slice(-MAX_STORED_TURNS)
+      .map((turn: any) => ({ ...turn, timestamp: new Date(turn.timestamp) }));
+  } catch {
+    return [];
+  }
+}
+
 export default function App() {
   const [state, setState] = useState<AssistantState>('idle');
   const [mode, setMode] = useState<AssistantMode>('fast'); // 'fast' (gemini-3.1-flash-lite) or 'thinking' (gemini-3.1-pro-preview)
@@ -28,7 +47,8 @@ export default function App() {
   const [userTranscript, setUserTranscript] = useState('');
   const [assistantReply, setAssistantReply] = useState('');
   const [groundingSources, setGroundingSources] = useState<GroundingSource[]>([]);
-  const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>([]);
+  const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>(loadConversationHistory);
+  const conversationHistoryRef = useRef(conversationHistory);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // References to keep callbacks fresh
@@ -45,6 +65,17 @@ export default function App() {
   const sessionRef = useRef(0);
   const playbackRef = useRef(0);
   const listenRequestRef = useRef(0);
+
+  const appendConversationTurn = useCallback((turn: ConversationTurn) => {
+    const next = [...conversationHistoryRef.current, turn].slice(-MAX_STORED_TURNS);
+    conversationHistoryRef.current = next;
+    setConversationHistory(next);
+    try {
+      localStorage.setItem(CONVERSATION_STORAGE_KEY, JSON.stringify(next));
+    } catch (error) {
+      console.warn('Could not persist Thiri conversation history:', error);
+    }
+  }, []);
 
   // Stop everything
   const handleEndCall = useCallback(() => {
@@ -141,7 +172,7 @@ export default function App() {
         text: queryText,
         timestamp: new Date(),
       };
-      setConversationHistory((prev) => [...prev.slice(-8), userTurn]);
+      appendConversationTurn(userTurn);
 
       try {
         const response = await companionFetch('/api/thiri/chat', {
@@ -149,7 +180,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: queryText,
-            history: conversationHistory.slice(-6).map((c) => ({
+            history: conversationHistoryRef.current.slice(0, -1).slice(-MAX_CONTEXT_TURNS).map((c) => ({
               role: c.role === 'assistant' ? 'model' : 'user',
               text: c.text,
             })),
@@ -180,7 +211,7 @@ export default function App() {
           modelUsed: data.modelUsed,
           groundingSources: sources,
         };
-        setConversationHistory((prev) => [...prev, assistantTurn]);
+        appendConversationTurn(assistantTurn);
 
         // Speak out the reply
         await speakResponse(reply);
@@ -197,7 +228,7 @@ export default function App() {
         await speakResponse(fallbackMessage);
       }
     },
-    [conversationHistory, speakResponse]
+    [appendConversationTurn, speakResponse]
   );
 
   // Start continuous listening loop
