@@ -36,10 +36,11 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [computerConnection, setComputerConnection] = useState<CompanionConnection | null>(getCompanion);
   const [showComputerPanel, setShowComputerPanel] = useState(false);
-  const [computerUrl, setComputerUrl] = useState('');
+  const [computerUrl, setComputerUrl] = useState(getCompanion()?.url || '');
   const [pairingCode, setPairingCode] = useState('');
   const [localPairingCode, setLocalPairingCode] = useState('');
   const [localTunnelUrl, setLocalTunnelUrl] = useState('');
+  const [localTunnelStatus, setLocalTunnelStatus] = useState('offline');
   const [computerError, setComputerError] = useState('');
   const isLocalPage = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
@@ -394,21 +395,54 @@ export default function App() {
     speechService.setLanguage(nextLang);
   };
 
-  const openComputerPanel = async () => {
+  const openComputerPanel = () => {
     setShowComputerPanel((value) => !value);
     setComputerError('');
-    if (isLocalPage && !localPairingCode) {
+  };
+
+  useEffect(() => {
+    if (!isLocalPage || !showComputerPanel) return;
+    const loadPairing = async () => {
       try {
         const response = await fetch('/api/local/pairing');
         const data = await readApiJson(response);
         if (!response.ok) throw new Error(data.error || 'Could not get a pairing code.');
         setLocalPairingCode(data.code);
         setLocalTunnelUrl(data.tunnelUrl || '');
+        setLocalTunnelStatus(data.tunnelStatus || 'offline');
       } catch (error) {
         setComputerError(error instanceof Error ? error.message : 'Could not get a pairing code.');
       }
-    }
-  };
+    };
+    void loadPairing();
+    const interval = window.setInterval(loadPairing, 4000);
+    return () => window.clearInterval(interval);
+  }, [isLocalPage, showComputerPanel]);
+
+  useEffect(() => {
+    if (isLocalPage || !computerConnection) return;
+    const check = async () => {
+      try {
+        const response = await fetch(`${computerConnection.url}/api/health`, {
+          headers: { 'X-Thiri-Pairing-Key': computerConnection.code },
+          credentials: 'omit',
+          signal: AbortSignal.timeout(8000),
+        });
+        if (response.status === 401) {
+          setCompanion(null);
+          setComputerConnection(null);
+          setComputerError('Pairing expired. Get the current code from your PC.');
+          setShowComputerPanel(true);
+        }
+      } catch {
+        setCompanion(null);
+        setComputerConnection(null);
+        setComputerError('The old tunnel URL is offline. Get the current URL from your PC and reconnect.');
+        setShowComputerPanel(true);
+      }
+    };
+    void check();
+  }, []);
 
   const connectComputer = async () => {
     try {
@@ -427,7 +461,7 @@ export default function App() {
       setShowComputerPanel(false);
       setPairingCode('');
     } catch (error) {
-      setComputerError(error instanceof Error ? error.message : 'Could not connect to your PC.');
+      setComputerError(error instanceof TypeError ? 'Cannot reach that tunnel. Get the current URL from Pair devices on your PC.' : error instanceof Error ? error.message : 'Could not connect to your PC.');
     }
   };
 
@@ -492,7 +526,8 @@ export default function App() {
       {showComputerPanel && <div className="absolute z-30 right-6 top-16 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-[#151925] p-4 shadow-2xl space-y-3 text-sm">
         {isLocalPage ? <>
           <p className="font-semibold">Pair another device</p>
-          <p className="text-xs text-slate-400">Keep this PC running. Start remote access with scripts/start-remote-access.ps1, then enter this URL and code on the hosted Thiri site.</p>
+          <p className="text-xs text-slate-400">Keep this PC running. Enter the current URL and code below on the hosted Thiri site. If the tunnel is offline, run scripts/start-remote-access.ps1.</p>
+          <p className="text-xs text-slate-400">Tunnel: {localTunnelStatus}{!localTunnelUrl ? ' — start remote access on this PC.' : ''}</p>
           {localTunnelUrl && <div className="space-y-1"><code className="block break-all rounded bg-black/30 p-2 text-xs">{localTunnelUrl}</code><button type="button" onClick={() => navigator.clipboard.writeText(localTunnelUrl)} className="text-indigo-300 text-xs">Copy tunnel URL</button></div>}
           <code className="block break-all rounded bg-black/30 p-2 text-xs">{localPairingCode || 'Loading pairing code...'}</code>
           {localPairingCode && <button type="button" onClick={() => navigator.clipboard.writeText(localPairingCode)} className="text-indigo-300 text-xs">Copy code</button>}

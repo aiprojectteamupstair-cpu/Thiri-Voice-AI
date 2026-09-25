@@ -1,5 +1,17 @@
 $ErrorActionPreference = 'Stop'
 
+for ($attempt = 0; $attempt -lt 15; $attempt++) {
+    try {
+        $pairing = Invoke-RestMethod -Uri 'http://localhost:3003/api/local/pairing' -TimeoutSec 3
+        if ($pairing.tunnelStatus -eq 'online' -and $pairing.tunnelUrl) {
+            Write-Host "Thiri Companion tunnel is already running: $($pairing.tunnelUrl)"
+            return
+        }
+        if ($pairing.tunnelStatus -notin @('connecting', 'reconnecting')) { break }
+    } catch { break }
+    Start-Sleep -Seconds 1
+}
+
 $cloudflared = (Get-Command cloudflared -ErrorAction SilentlyContinue).Source
 if (-not $cloudflared) {
     $bundled = Join-Path $PSScriptRoot '..\.local-tools\cloudflared.exe'
