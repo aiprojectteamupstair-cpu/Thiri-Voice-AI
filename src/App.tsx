@@ -6,7 +6,7 @@ import { CallControls } from './components/CallControls';
 import { audioManager } from './utils/audio';
 import { speechService } from './utils/speechRecognition';
 import { readApiJson } from './utils/api';
-import { companionFetch, getCompanion, normalizeCompanionUrl, setCompanion, type CompanionConnection } from './utils/companion';
+import { checkCompanion, companionFetch, getCompanion, normalizeCompanionUrl, setCompanion, type CompanionConnection } from './utils/companion';
 import { Volume2, VolumeX, AlertCircle, Monitor } from 'lucide-react';
 
 const CONVERSATION_STORAGE_KEY = 'thiri-conversation-history-v1';
@@ -420,48 +420,32 @@ export default function App() {
   }, [isLocalPage, showComputerPanel]);
 
   useEffect(() => {
-    if (isLocalPage || !computerConnection) return;
+    const savedConnection = getCompanion();
+    if (isLocalPage || !savedConnection) return;
     const check = async () => {
       try {
-        const response = await fetch(`${computerConnection.url}/api/health`, {
-          headers: { 'X-Thiri-Pairing-Key': computerConnection.code },
-          credentials: 'omit',
-          signal: AbortSignal.timeout(8000),
-        });
-        if (response.status === 401) {
-          setCompanion(null);
-          setComputerConnection(null);
-          setComputerError('Pairing expired. Get the current code from your PC.');
-          setShowComputerPanel(true);
-        }
-      } catch {
-        setCompanion(null);
-        setComputerConnection(null);
-        setComputerError('The old tunnel URL is offline. Get the current URL from your PC and reconnect.');
+        await checkCompanion(savedConnection);
+      } catch (error) {
+        if (getCompanion() !== savedConnection) return;
+        setComputerError(error instanceof Error ? error.message : 'Could not connect to your PC.');
         setShowComputerPanel(true);
       }
     };
     void check();
-  }, []);
+  }, [isLocalPage]);
 
   const connectComputer = async () => {
     try {
       setComputerError('');
       const candidate = { url: normalizeCompanionUrl(computerUrl), code: pairingCode.trim() };
       if (!candidate.code) throw new Error('Enter the pairing code shown on your PC.');
-      const response = await fetch(`${candidate.url}/api/health`, {
-        headers: { 'X-Thiri-Pairing-Key': candidate.code },
-        credentials: 'omit',
-        signal: AbortSignal.timeout(12000),
-      });
-      const data = await readApiJson(response);
-      if (!response.ok || data.status !== 'ok') throw new Error(data.error || 'Could not connect to your PC.');
+      await checkCompanion(candidate);
       setCompanion(candidate);
       setComputerConnection(candidate);
       setShowComputerPanel(false);
       setPairingCode('');
     } catch (error) {
-      setComputerError(error instanceof TypeError ? 'Cannot reach that tunnel. Get the current URL from Pair devices on your PC.' : error instanceof Error ? error.message : 'Could not connect to your PC.');
+      setComputerError(error instanceof Error ? error.message : 'Could not connect to your PC.');
     }
   };
 

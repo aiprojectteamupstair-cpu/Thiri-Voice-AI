@@ -6,7 +6,6 @@ import PptxGenJS from 'pptxgenjs';
 
 const projectDir = process.cwd();
 export const outputDir = path.join(projectDir, 'Thiri Output');
-const openScript = path.join(projectDir, 'scripts', 'open-item.ps1');
 const inputScript = path.join(projectDir, 'scripts', 'control-input.ps1');
 const clickElementScript = path.join(projectDir, 'scripts', 'click-element.ps1');
 
@@ -27,7 +26,11 @@ function uniqueName(title: string, extension: string): string {
 
 async function openTarget(target: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', openScript, '-Target', target], {
+    const child = spawn('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-Command',
+      "$ErrorActionPreference = 'Stop'; Start-Process -FilePath $env:THIRI_OPEN_TARGET",
+    ], {
+      env: { ...process.env, THIRI_OPEN_TARGET: target },
       windowsHide: true,
       stdio: 'ignore',
     });
@@ -150,9 +153,9 @@ const apps: Record<string, string> = {
 };
 
 export async function openApp(app: string): Promise<void> {
-  const executable = apps[String(app).toLowerCase()];
-  if (!executable) throw new Error('I can open Word, PowerPoint, Notepad, Calculator, or File Explorer.');
-  await openTarget(executable);
+  const name = app.trim().toLowerCase();
+  if (!Object.hasOwn(apps, name)) throw new Error('I can open Word, PowerPoint, Notepad, Calculator, or File Explorer.');
+  await openTarget(apps[name]);
 }
 
 export async function controlInput(command: { action: 'move' | 'click' | 'scroll' | 'type' | 'keys'; x?: number; y?: number; button?: string; steps?: number; text?: string; keys?: string }): Promise<void> {

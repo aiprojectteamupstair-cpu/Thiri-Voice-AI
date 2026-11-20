@@ -95,6 +95,7 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
     res.json({
       status: 'ok',
       assistant: 'နန္ဒာ (Nandar)',
+      desktopAvailable,
       time: new Date().toISOString(),
       models: {
         fast: FAST_CHAT_MODEL,
