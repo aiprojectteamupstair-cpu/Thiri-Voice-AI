@@ -27,13 +27,13 @@ function pcmToWav(pcm: Buffer): Buffer {
   return Buffer.concat([header, pcm]);
 }
 
-// Thiri Assistant System Instruction
+// Nandar Assistant System Instruction
 const THIRI_SYSTEM_PROMPT = `
-You are "သီရိ (Thiri)", a premier young female personal AI voice assistant.
+You are "နန္ဒာ (Nandar)", a premier young female personal AI voice assistant.
 Current year: 2026. The current local date is September 2026.
 
 Identity & Personality:
-- Name: သီရိ (Thiri)
+- Name: နန္ဒာ (Nandar)
 - Gender & Role: Young female personal executive assistant.
 - Traits: Extremely polite, respectful, warm, friendly, modern, youthful, and energetic yet professional. Speaks naturally like a real human personal assistant.
 - Communication Style:
@@ -41,7 +41,7 @@ Identity & Personality:
   * Avoid long walls of text, markdown tables, or unnecessary filler words.
   * Understand user intent quickly.
   * Ask brief clarification only when needed.
-  * When speaking in Myanmar (Burmese), speak grammatically natural, polite, respectful Burmese (e.g. using 'ရှင်', 'ဟုတ်ကဲ့ရှင်', 'သီရိ ကူညီပေးပါမယ်ရှင်').
+  * When speaking in Myanmar (Burmese), speak grammatically natural, polite, respectful Burmese (e.g. using 'ရှင်', 'ဟုတ်ကဲ့ရှင်', 'နန္ဒာ ကူညီပေးပါမယ်ရှင်').
   * When speaking in English, be warm, clear, crisp, and executive.
   * Fluently adapt to whatever language the user speaks (Myanmar, English, etc.).
 - Knowledge & Capabilities:
@@ -93,7 +93,7 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({
       status: 'ok',
-      assistant: 'သီရိ (Thiri)',
+      assistant: 'နန္ဒာ (Nandar)',
       time: new Date().toISOString(),
       models: {
         fast: CHAT_MODEL,
@@ -120,7 +120,7 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
     }
   });
 
-  // Chat endpoint for Thiri using Nemotron through OpenRouter
+  // Chat endpoint for Nandar using Nemotron through OpenRouter
   app.post('/api/thiri/chat', async (req: Request, res: Response) => {
     try {
       const {
@@ -163,7 +163,7 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': process.env.APP_URL || `http://localhost:${PORT}`,
-          'X-OpenRouter-Title': 'Thiri AI Voice Assistant',
+          'X-OpenRouter-Title': 'Nandar AI Voice Assistant',
         },
         body: JSON.stringify({
           model: CHAT_MODEL,
@@ -211,7 +211,7 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
       }
       res.json({ text: completed.join(' ') || 'The action limit was reached.', modelUsed, groundingChunks: files.map((fileName) => ({ title: fileName, uri: `/api/thiri/files/${encodeURIComponent(fileName)}` })) });
     } catch (error: any) {
-      console.error('Thiri chat error:', error);
+      console.error('Nandar chat error:', error);
       res.status(500).json({
         error: error.message || 'Failed to process voice assistant query',
       });
@@ -249,7 +249,7 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
             Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
             'Content-Type': 'application/json',
             'HTTP-Referer': process.env.APP_URL || `http://localhost:${PORT}`,
-            'X-OpenRouter-Title': 'Thiri AI Voice Assistant',
+            'X-OpenRouter-Title': 'Nandar AI Voice Assistant',
           },
           body: JSON.stringify({
             model: language === 'my' ? 'google/chirp-3' : 'openai/whisper-large-v3-turbo',
@@ -298,7 +298,7 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': process.env.APP_URL || `http://localhost:${PORT}`,
-          'X-OpenRouter-Title': 'Thiri AI Voice Assistant',
+          'X-OpenRouter-Title': 'Nandar AI Voice Assistant',
         },
         body: JSON.stringify({
           model: TTS_MODEL,

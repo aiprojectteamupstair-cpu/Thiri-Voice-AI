@@ -1,5 +1,5 @@
 /**
- * Web Audio and Speech Synthesis Manager for Thiri AI Voice Assistant
+ * Web Audio and Speech Synthesis Manager for Nandar AI Voice Assistant
  */
 
 class AudioManager {

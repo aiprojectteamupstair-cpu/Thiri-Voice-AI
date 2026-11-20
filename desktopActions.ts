@@ -103,7 +103,7 @@ export async function createPresentation(title: string, slides: Array<{ title: s
   const name = uniqueName(title, '.pptx');
   const presentation = new PptxGenJS();
   presentation.layout = 'LAYOUT_WIDE';
-  presentation.author = 'Thiri';
+  presentation.author = 'Nandar';
   presentation.subject = title;
   const cover = presentation.addSlide();
   cover.background = { color: '111827' };

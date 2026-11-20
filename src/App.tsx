@@ -74,7 +74,7 @@ export default function App() {
     try {
       localStorage.setItem(CONVERSATION_STORAGE_KEY, JSON.stringify(next));
     } catch (error) {
-      console.warn('Could not persist Thiri conversation history:', error);
+      console.warn('Could not persist Nandar conversation history:', error);
     }
   }, []);
 
@@ -194,7 +194,7 @@ export default function App() {
         if (session !== sessionRef.current) return;
 
         if (!response.ok || data.error) {
-          throw new Error(data.error || 'Failed to receive response from Thiri');
+          throw new Error(data.error || 'Failed to receive response from Nandar');
         }
 
         const reply = data.text;
@@ -330,11 +330,11 @@ export default function App() {
     setState('connecting');
     setErrorMessage(null);
 
-    // Initial greeting from Thiri
+    // Initial greeting from Nandar
     const greetingText =
       languageRef.current === 'my'
-        ? 'မင်္ဂလာပါရှင်။ ကျွန်မ သီရိပါ။ ဘာများ ကူညီပေးရမလဲရှင်။'
-        : "Hello! I'm Thiri, your personal AI assistant. How may I help you today?";
+        ? 'မင်္ဂလာပါရှင်။ ကျွန်မ နန္ဒာပါ။ ဘာများ ကူညီပေးရမလဲရှင်။'
+        : "Hello! I'm Nandar, your personal AI assistant. How may I help you today?";
 
     setAssistantReply(greetingText);
     await speakResponse(greetingText);
@@ -526,14 +526,14 @@ export default function App() {
       {showComputerPanel && <div className="absolute z-30 right-6 top-16 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-white/10 bg-[#151925] p-4 shadow-2xl space-y-3 text-sm">
         {isLocalPage ? <>
           <p className="font-semibold">Pair another device</p>
-          <p className="text-xs text-slate-400">Keep this PC running. Enter the current URL and code below on the hosted Thiri site. If the tunnel is offline, run scripts/start-remote-access.ps1.</p>
+          <p className="text-xs text-slate-400">Keep this PC running. Enter the current URL and code below on the hosted Nandar site. If the tunnel is offline, run scripts/start-remote-access.ps1.</p>
           <p className="text-xs text-slate-400">Tunnel: {localTunnelStatus}{!localTunnelUrl ? ' — start remote access on this PC.' : ''}</p>
           {localTunnelUrl && <div className="space-y-1"><code className="block break-all rounded bg-black/30 p-2 text-xs">{localTunnelUrl}</code><button type="button" onClick={() => navigator.clipboard.writeText(localTunnelUrl)} className="text-indigo-300 text-xs">Copy tunnel URL</button></div>}
           <code className="block break-all rounded bg-black/30 p-2 text-xs">{localPairingCode || 'Loading pairing code...'}</code>
           {localPairingCode && <button type="button" onClick={() => navigator.clipboard.writeText(localPairingCode)} className="text-indigo-300 text-xs">Copy code</button>}
         </> : <>
           <p className="font-semibold">Connect your Windows computer</p>
-          <p className="text-xs text-slate-400">Run Thiri and a secure tunnel on that PC. Enter the tunnel URL and the code shown at localhost:3003 → Pair devices.</p>
+          <p className="text-xs text-slate-400">Run Nandar and a secure tunnel on that PC. Enter the tunnel URL and the code shown at localhost:3003 → Pair devices.</p>
           <input aria-label="Companion URL" placeholder="https://your-tunnel.example.com" value={computerUrl} onChange={(event) => setComputerUrl(event.target.value)} className="w-full rounded bg-white/5 border border-white/10 px-3 py-2 outline-none" />
           <input aria-label="Pairing code" placeholder="Pairing code" value={pairingCode} onChange={(event) => setPairingCode(event.target.value)} className="w-full rounded bg-white/5 border border-white/10 px-3 py-2 outline-none" />
           <button type="button" onClick={connectComputer} className="rounded bg-indigo-600 px-3 py-1.5">Connect</button>
@@ -547,10 +547,10 @@ export default function App() {
         {/* Agent Name */}
         <div className="text-center space-y-1.5 mb-2">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white via-slate-100 to-slate-400 font-sans drop-shadow-sm">
-            သီရိ
+            နန္ဒာ
           </h1>
           <p className="text-xs md:text-sm tracking-wider uppercase text-indigo-300/80 font-medium">
-            Thiri — Personal AI Voice Assistant
+            Nandar — Personal AI Voice Assistant
           </p>
         </div>
 

@@ -55,7 +55,7 @@ export const CallControls: React.FC<CallControlsProps> = ({
               <Phone className="w-5 h-5 text-white animate-pulse" />
             </span>
             <span className="tracking-wide">
-              {language === 'my' ? 'သီရိနှင့် စကားပြောမည်' : 'Start Voice Call'}
+              {language === 'my' ? 'နန္ဒာနှင့် စကားပြောမည်' : 'Start Voice Call'}
             </span>
           </button>
 
@@ -167,8 +167,8 @@ export const CallControls: React.FC<CallControlsProps> = ({
             onChange={(e) => setInputText(e.target.value)}
             placeholder={
               language === 'my'
-                ? 'သီရိအား မေးလိုသည်ကို ရိုက်ထည့်ပါ...'
-                : 'Type a message to Thiri...'
+                ? 'နန္ဒာအား မေးလိုသည်ကို ရိုက်ထည့်ပါ...'
+                : 'Type a message to Nandar...'
             }
             className="flex-1 bg-transparent px-3 py-1.5 text-sm text-slate-100 placeholder-slate-400 focus:outline-none"
             autoFocus

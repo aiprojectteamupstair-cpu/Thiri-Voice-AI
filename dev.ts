@@ -37,7 +37,7 @@ function startManagedTunnel() {
     if (current && current !== tunnelUrl) {
       tunnelUrl = current;
       tunnelStatus = 'online';
-      console.log(`[Thiri Companion] Remote access: ${tunnelUrl}`);
+      console.log(`[Nandar Companion] Remote access: ${tunnelUrl}`);
     }
   });
   let restarting = false;
@@ -61,8 +61,8 @@ async function start() {
     const vite = await createServer({ server: { middlewareMode: true }, appType: 'spa' });
     app.use(vite.middlewares);
   }
-  app.listen(port, '127.0.0.1', () => console.log(`[Thiri Assistant Server] Running on http://127.0.0.1:${port}`));
-  companion.listen(companionPort, '127.0.0.1', () => console.log(`[Thiri Companion] Pairing API on http://127.0.0.1:${companionPort}`));
+  app.listen(port, '127.0.0.1', () => console.log(`[Nandar Assistant Server] Running on http://127.0.0.1:${port}`));
+  companion.listen(companionPort, '127.0.0.1', () => console.log(`[Nandar Companion] Pairing API on http://127.0.0.1:${companionPort}`));
   startManagedTunnel();
 }
 

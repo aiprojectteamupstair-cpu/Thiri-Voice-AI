@@ -4,7 +4,7 @@ for ($attempt = 0; $attempt -lt 15; $attempt++) {
     try {
         $pairing = Invoke-RestMethod -Uri 'http://localhost:3003/api/local/pairing' -TimeoutSec 3
         if ($pairing.tunnelStatus -eq 'online' -and $pairing.tunnelUrl) {
-            Write-Host "Thiri Companion tunnel is already running: $($pairing.tunnelUrl)"
+            Write-Host "Nandar Companion tunnel is already running: $($pairing.tunnelUrl)"
             return
         }
         if ($pairing.tunnelStatus -notin @('connecting', 'reconnecting')) { break }
@@ -35,6 +35,6 @@ for ($attempt = 0; $attempt -lt 30; $attempt++) {
     if ($url) { break }
 }
 if (-not $url) { throw "Tunnel URL was not found. Read $log for details." }
-Write-Host "Thiri Companion tunnel: $url"
+Write-Host "Nandar Companion tunnel: $url"
 Write-Host 'Open http://localhost:3003 → Pair devices for the pairing code.'
 Write-Host "Tunnel process ID: $($process.Id)"

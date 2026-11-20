@@ -36,7 +36,7 @@ export const TranscriptBubble: React.FC<TranscriptBubbleProps> = ({
           ? 'အချက်အလက် ရှာဖွေတွေးတောနေသည်...'
           : 'Processing...';
       case 'speaking':
-        return language === 'my' ? 'သီရိ ပြောနေပါသည် — ဝင်ပြောနိုင်ပါသည်' : 'Thiri is speaking — speak to interrupt';
+        return language === 'my' ? 'နန္ဒာ ပြောနေပါသည် — ဝင်ပြောနိုင်ပါသည်' : 'Nandar is speaking — speak to interrupt';
       case 'error':
         return language === 'my' ? 'ချိတ်ဆက်မှု ပြဿနာရှိနေပါသည်' : 'Connection issue';
       case 'idle':
@@ -88,7 +88,7 @@ export const TranscriptBubble: React.FC<TranscriptBubbleProps> = ({
             </div>
           )}
 
-          {/* Thiri's response */}
+          {/* Nandar's response */}
           {assistantReply && (
             <div className="flex justify-start">
               <div className="max-w-[90%] rounded-2xl rounded-tl-sm bg-white/5 border border-white/10 px-4 py-3 backdrop-blur-md text-sm text-slate-200 shadow-xl space-y-2.5">
