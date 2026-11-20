@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import { timingSafeEqual } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 
 dotenv.config();
 
@@ -10,6 +11,68 @@ const FAST_CHAT_MODEL = 'openai/gpt-5.6-luna';
 const THINKING_CHAT_MODEL = 'openai/gpt-5.6-terra';
 const TTS_MODEL = 'google/gemini-3.1-flash-tts-preview';
 const TTS_VOICE = 'Zephyr';
+
+const retryableAudioStatuses = new Set([429, 500, 502, 503, 504, 524, 529]);
+
+async function requestOpenRouterAudio<T>(
+  endpoint: 'speech' | 'transcriptions',
+  payload: object,
+  readResponse: (response: globalThis.Response) => Promise<T>,
+  res: Response,
+): Promise<T | undefined> {
+  const body = JSON.stringify(payload);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let retryDelay = 750 + Math.random() * 500;
+    try {
+      const response = await fetch(`https://openrouter.ai/api/v1/audio/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.APP_URL || `http://localhost:${PORT}`,
+          'X-OpenRouter-Title': 'Nandar AI Voice Assistant',
+        },
+        body,
+        signal: AbortSignal.timeout(25000),
+      });
+      if (response.ok) return await readResponse(response);
+
+      const retryAfter = response.headers.get('Retry-After');
+      if (retryAfter) {
+        const seconds = Number(retryAfter);
+        const wait = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retryAfter) - Date.now();
+        if (Number.isFinite(wait)) retryDelay = Math.max(retryDelay, wait);
+      }
+      void response.body?.cancel().catch(() => {});
+      console.warn('OpenRouter audio request failed', {
+        endpoint, status: response.status, attempt: attempt + 1, generationId: response.headers.get('X-Generation-Id'),
+      });
+      if (attempt > 0 || !retryableAudioStatuses.has(response.status) || retryDelay > 5000) {
+        if (retryAfter && response.status === 429) res.setHeader('Retry-After', retryAfter);
+        const error = response.status === 429
+          ? 'The speech provider is rate-limited. Try again shortly.'
+          : [401, 403].includes(response.status)
+            ? 'OpenRouter rejected the server credentials for speech.'
+            : response.status === 402
+              ? 'OpenRouter could not authorize payment for the speech request.'
+              : 'The speech provider could not complete the request. Try again shortly.';
+        res.status(response.status === 429 ? 429 : 502).json({ error });
+        return;
+      }
+    } catch (error) {
+      const cause = error instanceof Error ? error.cause as NodeJS.ErrnoException | undefined : undefined;
+      console.warn('OpenRouter audio transport failed', {
+        endpoint, attempt: attempt + 1, errorType: error instanceof Error ? error.name : undefined, causeCode: cause?.code,
+      });
+      if (attempt > 0) {
+        res.status(502).json({ error: 'The server could not complete its connection to OpenRouter. Try again shortly.' });
+        return;
+      }
+    }
+    await delay(retryDelay);
+    if (res.destroyed) return;
+  }
+}
 
 function pcmToWav(pcm: Buffer): Buffer {
   const header = Buffer.alloc(44);
@@ -251,27 +314,12 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
         }
 
         const language = req.query.language === 'en' ? 'en' : req.query.language === 'my' ? 'my' : undefined;
-        const transcriptionResponse = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.APP_URL || `http://localhost:${PORT}`,
-            'X-OpenRouter-Title': 'Nandar AI Voice Assistant',
-          },
-          body: JSON.stringify({
-            model: language === 'my' ? 'google/chirp-3' : 'openai/whisper-large-v3-turbo',
-            input_audio: { data: req.body.toString('base64'), format },
-            ...(language ? { language: language === 'my' ? 'my-MM' : language } : {}),
-          }),
-        });
-
-        if (!transcriptionResponse.ok) {
-          const errorBody = await transcriptionResponse.text();
-          throw new Error(`OpenRouter transcription failed (${transcriptionResponse.status}): ${errorBody.slice(0, 500)}`);
-        }
-
-        const transcription = await transcriptionResponse.json();
+        const transcription = await requestOpenRouterAudio('transcriptions', {
+          model: language === 'my' ? 'google/chirp-3' : 'openai/whisper-large-v3-turbo',
+          input_audio: { data: req.body.toString('base64'), format },
+          ...(language ? { language: language === 'my' ? 'my-MM' : language } : {}),
+        }, (response) => response.json(), res);
+        if (transcription === undefined) return;
         res.json({ text: String(transcription.text || '').trim(), usage: transcription.usage });
       } catch (error: any) {
         console.warn('OpenRouter transcription error:', error.message);
@@ -300,28 +348,19 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
       // Limit length for low-latency voice delivery (up to 400 characters per vocalization)
       const cleanText = text.replace(/[*_#`~[\]]/g, '').trim().slice(0, 500);
 
-      const ttsResponse = await fetch('https://openrouter.ai/api/v1/audio/speech', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.APP_URL || `http://localhost:${PORT}`,
-          'X-OpenRouter-Title': 'Nandar AI Voice Assistant',
-        },
-        body: JSON.stringify({
-          model: TTS_MODEL,
-          input: cleanText,
-          voice: TTS_VOICE,
-          response_format: 'pcm',
-        }),
-      });
-
-      if (!ttsResponse.ok) {
-        const errorBody = await ttsResponse.text();
-        throw new Error(`OpenRouter TTS failed (${ttsResponse.status}): ${errorBody.slice(0, 500)}`);
-      }
-
-      const audioBytes = Buffer.from(await ttsResponse.arrayBuffer());
+      const audioBytes = await requestOpenRouterAudio('speech', {
+        model: TTS_MODEL,
+        input: cleanText,
+        voice: TTS_VOICE,
+        response_format: 'pcm',
+      }, async (response) => {
+        const audio = Buffer.from(await response.arrayBuffer());
+        if (!audio.length || audio.length % 2 !== 0 || response.headers.get('Content-Type')?.includes('application/json')) {
+          throw new Error('OpenRouter returned invalid PCM audio.');
+        }
+        return audio;
+      }, res);
+      if (audioBytes === undefined) return;
       const audioData = pcmToWav(audioBytes).toString('base64');
       res.json({
         audio: audioData,
