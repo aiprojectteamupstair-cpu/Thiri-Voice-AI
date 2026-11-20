@@ -6,7 +6,8 @@ dotenv.config();
 
 const PORT = Number(process.env.PORT) || 3003;
 
-const CHAT_MODEL = 'google/gemini-3-flash-preview';
+const FAST_CHAT_MODEL = 'openai/gpt-5.6-luna';
+const THINKING_CHAT_MODEL = 'openai/gpt-5.6-terra';
 const TTS_MODEL = 'google/gemini-3.1-flash-tts-preview';
 const TTS_VOICE = 'Zephyr';
 
@@ -96,8 +97,8 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
       assistant: 'နန္ဒာ (Nandar)',
       time: new Date().toISOString(),
       models: {
-        fast: CHAT_MODEL,
-        thinking: CHAT_MODEL,
+        fast: FAST_CHAT_MODEL,
+        thinking: THINKING_CHAT_MODEL,
         tts: TTS_MODEL,
         voice: TTS_VOICE,
         stt: { en: 'openai/whisper-large-v3-turbo', my: 'google/chirp-3' },
@@ -120,7 +121,7 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
     }
   });
 
-  // Chat endpoint for Nandar using Nemotron through OpenRouter
+  // Chat endpoint for Nandar through OpenRouter
   app.post('/api/thiri/chat', async (req: Request, res: Response) => {
     try {
       const {
@@ -156,6 +157,8 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
         { role: 'user', content: message },
       ];
       const computerTools = desktopAvailable ? await import('../assistantTools.js') : undefined;
+      const thinking = mode === 'thinking';
+      const chatModel = thinking ? THINKING_CHAT_MODEL : FAST_CHAT_MODEL;
 
       const runCompletion = () => fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -166,18 +169,17 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
           'X-OpenRouter-Title': 'Nandar AI Voice Assistant',
         },
         body: JSON.stringify({
-          model: CHAT_MODEL,
+          model: chatModel,
           messages,
           max_tokens: 1800,
-          temperature: 0.5,
-          reasoning: { effort: mode === 'thinking' ? 'high' : 'low' },
+          reasoning: { effort: thinking ? 'low' : 'none' },
           ...(computerTools ? { tools: computerTools.assistantTools, tool_choice: 'auto' } : {}),
         }),
       });
 
       const completed: string[] = [];
       const files: string[] = [];
-      let modelUsed = CHAT_MODEL;
+      let modelUsed = chatModel;
       for (let step = 0; step < 4; step++) {
         const completionResponse = await runCompletion();
         if (!completionResponse.ok) {
@@ -185,7 +187,7 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
           throw new Error(`OpenRouter chat failed (${completionResponse.status}): ${errorBody.slice(0, 500)}`);
         }
         const completion = await completionResponse.json();
-        modelUsed = completion.model || CHAT_MODEL;
+        modelUsed = completion.model || chatModel;
         const assistantMessage = completion.choices?.[0]?.message;
         const toolCalls = assistantMessage?.tool_calls || [];
         if (!toolCalls.length) {
@@ -194,7 +196,12 @@ export function createThiriApp(desktopAvailable: boolean, companion?: { token: s
           res.json({ text: completed.length ? completed.join(' ') : responseText || 'Please try again.', modelUsed, groundingChunks: files.map((fileName) => ({ title: fileName, uri: `/api/thiri/files/${encodeURIComponent(fileName)}` })) });
           return;
         }
-        messages.push({ role: 'assistant', content: assistantMessage.content || null, tool_calls: toolCalls } as any);
+        messages.push({
+          role: 'assistant',
+          content: assistantMessage.content || null,
+          tool_calls: toolCalls,
+          reasoning_details: assistantMessage.reasoning_details,
+        } as any);
         for (const toolCall of toolCalls) {
           try {
             if (!computerTools) throw new Error('Desktop controls are unavailable on the cloud deployment.');
